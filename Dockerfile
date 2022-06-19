@@ -22,5 +22,4 @@ COPY --from=install /venv /venv
 # Basically squashing the COPY commands in the final image
 FROM gcr.io/distroless/python3-debian11
 COPY --from=pre / /
-ENV DISCORD_TOKEN=$DISCORD_TOKEN
 ENTRYPOINT ["/venv/bin/python", "bot.py"]

@@ -1,4 +1,4 @@
-name: Docker
+name: Build and deploy
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -11,7 +11,7 @@ concurrency:
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "20220619_terraform_action" ]
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
 
@@ -66,3 +66,40 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: "${{ env.REGISTRY }}/${{ github.repository }}:latest"
           labels: ${{ steps.meta.outputs.labels }}
+  
+  deploy:
+    needs: build
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    env:
+      WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+      SERVICE_ACCOUNT_EMAIL: ${{ secrets.SERVICE_ACCOUNT_EMAIL }}
+      TF_VAR_PROJECT: ${{ secrets.TF_VAR_PROJECT }}
+      TF_VAR_REGION: ${{ secrets.TF_VAR_REGION }}
+      TF_VAR_ZONE: ${{ secrets.TF_VAR_ZONE }}
+      TF_VAR_DISCORD_TOKEN: ${{ secrets.TF_VAR_DISCORD_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v0.7.3
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT_EMAIL }}
+          create_credentials_file: true # optional, default is true
+          export_environment_variables: true # optional, default is true
+          cleanup_credentials: true # optional, default is true
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2.0.0
+
+      - name: Terraform Init
+        run: terraform init -upgrade -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET_NAME }}"
+
+      - name: Terraform Apply
+        run: terraform apply -replace=module.gce-worker-container.google_compute_instance.vm -auto-approve
