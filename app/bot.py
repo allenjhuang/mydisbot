@@ -1,21 +1,38 @@
 import os
 import random
 from typing import List
-
 from discord.ext import commands
 from dotenv import load_dotenv
+from lib.nlp import get_synonym
+from shared import session
 
 if not os.getenv("DISCORD_TOKEN"):
     load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 
-def get_prefix(bot, message):
+def get_prefix(discord_bot, message):
     prefixes = ["!"]
-    return commands.when_mentioned_or(*prefixes)(bot, message)
+    return commands.when_mentioned_or(*prefixes)(discord_bot, message)
 
 
-bot = commands.Bot(command_prefix=get_prefix)
+class BotWithCustomCleanup(commands.Bot):
+    def __init__(self, command_prefix):
+        super().__init__(command_prefix)
+
+
+    async def async_cleanup(self):
+        print("\nCleaning up before closing...")
+        await session.close()
+        print("done")
+
+
+    async def close(self):
+        await self.async_cleanup()
+        await super().close()
+
+
+bot = BotWithCustomCleanup(command_prefix=get_prefix)
 
 initial_extensions = ["cogs.simple", "cogs.nlp"]
 
@@ -38,7 +55,7 @@ async def on_command_error(ctx, error):
         await ctx.send(
             "You're missing an argument, ya {}!".format(
                 random.choice(possible_labels).replace("_", " ")
-                if len(possible_labels)
+                if len(possible_labels) > 0
                 else "buffoon"
             )
         )

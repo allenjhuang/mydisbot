@@ -1,5 +1,5 @@
+aiohttp
 discord.py
 nltk
 numpy
 python-dotenv
-requests
